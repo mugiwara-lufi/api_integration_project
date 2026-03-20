@@ -16,3 +16,13 @@ def get_external_data(country_name):
     w_res = requests.get(weather_url)
 
     return c_data, w_res.json() if w_res.status_code == 200 else None, None
+def transform_data(country_raw, weather_raw):
+    # Requirement III: Modify, Compute, and Clean
+    return {
+        "country_name": country_raw.get('name', {}).get('common'),
+        "capital_city": country_raw.get('capital', ["N/A"])[0],
+        "population_count": f"{country_raw.get('population'):,}", # Formatted
+        "current_temp_celsius": weather_raw.get('current_weather', {}).get('temperature'),
+        "is_warm": weather_raw.get('current_weather', {}).get('temperature', 0) > 20, # Computed field
+        "api_version": "v1.0"
+    }
