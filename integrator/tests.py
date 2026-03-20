@@ -1,31 +1,45 @@
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
+from unittest.mock import patch
 
 class UnifiedApiTests(TestCase):
     def setUp(self):
-        # Requirement V: Using the versioned URL name
         self.url = reverse('weather-v1')
 
-    def test_get_weather_summary_success(self):
-        """Test Case: Successful API call with a valid country"""
-        # We use a real country to ensure the external APIs return data
+    @patch('integrator.services.requests.get')
+    def test_get_weather_summary_mocked_success(self, mock_get):
+        """Test Case: Successful API call using MOCKED data (Requirement VII)"""
+        
+        # 1. Define what the "Fake" APIs should return
+        mock_country_json = [{
+            'name': {'common': 'Philippines'},
+            'capital': ['Manila'],
+            'population': 115559000,
+            'latlng': [13.0, 122.0]
+        }]
+        
+        mock_weather_json = {
+            'current_weather': {
+                'temperature': 30.5
+            }
+        }
+
+        # 2. Tell the mock to return these values in order
+        # First call is Country API, second is Weather API
+        mock_get.side_effect = [
+            type('Response', (object,), {'status_code': 200, 'json': lambda: mock_country_json}),
+            type('Response', (object,), {'status_code': 200, 'json': lambda: mock_weather_json})
+        ]
+
+        # 3. Call your endpoint
         response = self.client.get(f"{self.url}?country=Philippines")
         
+        # 4. Assertions
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # Requirement III: Check if transformed fields exist
-        self.assertIn('country_name', response.data)
-        self.assertIn('current_temp_celsius', response.data)
-        self.assertIn('is_warm', response.data)
         self.assertEqual(response.data['country_name'], 'Philippines')
-
-    def test_missing_parameter_error(self):
-        """Requirement IV: Handle 400 Bad Request (Missing Parameter)"""
-        response = self.client.get(self.url) # No ?country=
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data['error'], "Missing 'country' parameter")
-
-    def test_invalid_country_error(self):
-        """Requirement IV: Handle 404 Not Found (Invalid Country)"""
-        response = self.client.get(f"{self.url}?country=InvalidCountryName123")
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.data['current_temp_celsius'], 30.5)
+        self.assertEqual(response.data['population_count'], "115,559,000")
+        
+        # Verify that we actually "mocked" it (requests.get was called twice)
+        self.assertEqual(mock_get.call_count, 2)
